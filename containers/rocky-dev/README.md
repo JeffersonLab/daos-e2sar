@@ -4,8 +4,8 @@
 Build the container with different stages.
 
 ```bash
-podman build --target builder -t <tag:builder> .  # the first stage, install grpc & boost
-
+podman build --target builder -t <tag-base:builder> .  # the first stage, install grpc & boost
+podman build --target e2sar-env -t <tag:meson> .  # the 2nd stage, dependecies needed for compiling and building E2SAR
 podman build -t <tag:final> .  
 ```
 

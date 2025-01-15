@@ -1,15 +1,14 @@
 # A podman image contains all e2sar-daos dependencies.
 
 # Parameters can be configured with "--build-arg"
-ARG BASE_ROCKY_VERSION=8.9
-ARG DAOS_VERSION=2.4
+ARG ROCKY_VERSION=8.9
 
 ######################################################################################
 # Stage 1: basic dev packages and installing grpc & boost, referring to
 # https://github.com/JeffersonLab/E2SAR/blob/main/.github/workflows/builddeps.yml.
 ######################################################################################
 
-FROM rockylinux:${BASE_ROCKY_VERSION} AS builder
+FROM rockylinux:${ROCKY_VERSION} AS builder
 
 # Match the e2sar dep versions.
 ENV BOOST_VERSION=1.85.0
@@ -77,12 +76,9 @@ RUN tar -xzf boost_1_85_0.tar.gz && \
     ./b2 install --prefix=${BOOST_INSTALL_DIR}
 
 #######################################################################################
-# Stage 2: Daos dependencies
+# Stage 2: The env for build, compile and install E2SAR.
 #######################################################################################
-FROM rockylinux:${BASE_ROCKY_VERSION}
-
-## For IB access, install the Infiniband kernels and drivers on host Ubuntu OS (ejfat-6).
-# sudo apt install infiniband-diags ibutils ibverbs-utils rdmacm-utils libibverbs-dev
+FROM rockylinux:${ROCKY_VERSION} AS e2sar-env
 
 # Copy the grpc & boost artifacts from stage 1.
 # This can reduce the image size by ~ 4GB.
@@ -98,12 +94,6 @@ ENV GRPC_ROOT="${GRPC_INSTALL_DIR}}" \
     PKG_CONFIG_PATH="${GRPC_INSTALL_DIR}/lib/pkgconfig:${GRPC_INSTALL_DIR}/lib64/pkgconfig" \
     PATH="${GRPC_INSTALL_DIR}/bin:$PATH" \
     LD_LIBRARY_PATH="${GRPC_INSTALL_DIR}/lib:${GRPC_INSTALL_DIR}/lib64:${BOOST_INSTALL_DIR}/lib"
-
-# Infiniband requirements
-RUN dnf update -y && \
-    dnf install -y \
-        rdma-core \
-        libibverbs
 
 # Install runtime dependencies including python
 # Reference: https://github.com/JeffersonLab/E2SAR/blob/main/scripts/notebooks/EJFAT/post-boot/recver.sh
@@ -124,9 +114,29 @@ RUN update-alternatives --set python /usr/bin/python3.9 && \
 # Install meson
 RUN pip3 install meson pybind11 scapy
 
-# Install DAOS client
-# RUN dnf -y install ucx ucx-devel && \
-#     curl -o /etc/yum.repos.d/daos.repo https://packages.daos.io/v${DAOS_VERSION}/repo/EL/8/daos_packages.repo && \
-#     dnf -y install daos-client daos-devel && \
-#     dnf clean all && \
-#     rm -rf /var/cache/dnf /var/tmp/*
+#######################################################################################
+# Stage 3: Install and configure daos-agent.
+# Refer to https://github.com/JeffersonLab/daos_ansible_install/blob/main/docker/Dockerfile.
+#######################################################################################
+FROM e2sar-env AS daos-runtime
+
+# NOTE: for IB access, install the Infiniband kernels and drivers on host Ubuntu OS (ejfat-6).
+# sudo apt install infiniband-diags ibutils ibverbs-utils rdmacm-utils libibverbs-dev
+
+# Infiniband requirements
+RUN dnf update -y && \
+    dnf install -yq rdma-core libibverbs \
+                    iputils iproute net-tools perftest infiniband-diags \
+                    ucx ucx-devel wget && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf /var/tmp/*
+
+# Install DAOS client packages and header files
+# TODO: update DAOS_VERSION when needed.
+ENV DAOS_VERSION=2.4
+RUN wget -O /etc/yum.repos.d/daos-packages.repo \
+    https://packages.daos.io/v${DAOS_VERSION}/EL8/packages/x86_64/daos_packages.repo && \
+	rpm --import https://packages.daos.io/RPM-GPG-KEY && \
+    dnf -y install daos-client daos-devel
+
+RUN systemctl enable daos_agent
