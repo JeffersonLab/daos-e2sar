@@ -1,0 +1,3 @@
+option('buildtest',
+        type: 'boolean', 
+        value: true, description: 'Enable building tests')

@@ -33,3 +33,6 @@
 
 # Tar files
 *.tar.gz
+
+# build
+build/
