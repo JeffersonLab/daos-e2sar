@@ -1,5 +1,8 @@
+
+# To set the project version, make sure `e2sar.pc` is included in $PKG_CONFIG_PATH
 project('e2sar-daos', 'cpp',
-    version: '0.1.1',   # TODO: check for run_command() to print a dynamic string
+    version: '0.1.0--e2sar_' + run_command('pkg-config', '--modversion', 'e2sar',
+                            check: true).stdout().strip(),
     default_options: ['cpp_std=c++17'])
 
 # Get the C++ compiler object
