@@ -1,7 +1,7 @@
 
 # To set the project version, make sure `e2sar.pc` is included in $PKG_CONFIG_PATH
 project('e2sar-daos', 'cpp',
-    version: '0.1.0--e2sar_' + run_command('pkg-config', '--modversion', 'e2sar',
+    version: '0.1.0-e2sar_' + run_command('pkg-config', '--modversion', 'e2sar',
                             check: true).stdout().strip(),
     default_options: ['cpp_std=c++17'])
 
@@ -29,14 +29,9 @@ else
     error('DAOS libraries or headers not found. Install daos-devel package first.')
 endif
 
-# # # Find Boost (required for unit testing)
-# boost_dep = dependency('boost', modules: ['unit_test_framework'], required: true)
-
 # Print Versions
 message('Building e2sar-daos with:')
 message('  - e2sar version: ' + e2sar_version)
-# message('  - DAOS version: ' + daos_version)
-# message('  - Boost version: ' + boost_dep.version())
 
 # Sources
 project_include_dir = include_directories('include')
@@ -57,5 +52,10 @@ e2sar_daos = library('e2sar-daos',
 # # Install Headers
 # install_headers('include/all_headers.h')
 
-# # Include tests
-# subdir('tests')
+# Check the buildtest option
+if get_option('buildtest')
+    message('Building e2sar-daos tests')
+    subdir('tests')
+else
+    message('Tests are disabled. Use -Dbuildtest=true to enable.')
+endif
